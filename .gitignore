@@ -1,0 +1,10 @@
+# Archivos sin seguimiento
+
+```
+.vscode/
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CMakeCache.txt
+deps/
+```

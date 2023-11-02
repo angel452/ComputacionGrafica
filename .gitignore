@@ -8,4 +8,6 @@ Makefile
 CMakeCache.txt
 CMakeLists.txt
 deps/
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
 ```

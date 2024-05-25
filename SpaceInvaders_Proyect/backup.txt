@@ -1,0 +1,558 @@
+/*
+Nombre: Angel Josue Loayza Huarachi
+Nombre: Frank Roger Salas Ticona
+Curso: Computacion Grafica
+*/
+
+#include "figure.h"
+#include "shaderClass.h"
+
+#include <iostream>
+#include <cmath>
+#include <GLFW/glfw3.h>
+#include <cstdio>
+#include <vector>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+// --> Librerias Solver
+#include "../Headers/TestingFunctions.h"
+
+using namespace std;
+
+// VARAIBLES
+#define screens 27 
+auto gl_draw_number = GL_TRIANGLES;
+const float PI = 3.14159265359;
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void processInput(GLFWwindow *window);
+void mouse_callback(GLFWwindow *window, double xposIn, double yposIn);
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+
+// settings
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 800;
+// * Mouse
+bool firstMouse = true;
+float lastX = SCR_WIDTH / 2.0f;
+float lastY = SCR_HEIGHT / 2.0f;
+float yaw = -90.0f; // --> Iniciar mirando hacia la izquierda
+float pitch = 0.0f;
+float fov = 45.0f;
+
+// * Camara
+glm::vec3 cameraPos = glm::vec3(0.0f, 2.0f, 13.0f); // --> Posicion de la camara
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f); // --> Hacia donde mira la camara
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f); // --> Hacia donde esta arriba la camara
+
+// CUBO
+float speed = (PI / 2) / 100;
+float acumAngle = 0.0f;
+Figure *cubes;
+int camada = 0;
+
+// SCRAMBLE
+vector<string> scramble;
+
+const char *vertexShaderSource ="#version 330 core\n"
+    "layout (location = 0) in vec3 aPosition;\n"
+    "layout (location = 1) in vec3 aColor;\n"
+    "out vec3 fragColor;\n"
+    "uniform mat4 model;\n"
+    "uniform mat4 view;\n"
+    "uniform mat4 projection;\n"
+    "void main()\n"
+    "{\n"
+    "   gl_Position = projection * view * model * vec4(aPosition, 1.0f);\n"
+    "   fragColor = aColor;\n"
+    "}\n";
+
+const char *fragmentShaderSource = "#version 330 core\n"
+    "in vec3 fragColor;\n"
+    "out vec4 FragColor;\n"
+    "void main()\n"
+    "{\n"
+    "   FragColor = vec4(fragColor, 1.0f);\n"
+    "}\n";
+
+// set up vertex data (and buffer(s)) and configure vertex attributes
+// ------------------------------------------------------------------
+unsigned int VAO[screens], VBO[screens], EBO[screens];
+
+void
+rotateCamada_DerechaIzquierda(){
+
+    switch (camada){
+        case 1: // * Camada Atras - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre -1.1 y -0.9, entonces es la camada atras
+                if( cubes[i].verticesCentrales[0] > -1.1f && cubes[i].verticesCentrales[0] < -0.9f){
+                    cubes[i].rotate(speed, 'x');
+                }
+            }
+            break;
+        case 2: // * Camada Central - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre -0.1 y 0.1, entonces es la camada central
+                if(cubes[i].verticesCentrales[0] > -0.1f && cubes[i].verticesCentrales[0] < 0.1f){
+                    cubes[i].rotate(speed, 'x');
+                }
+            }
+            break;
+        case 3: // * Camada Frente - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre 0.9 y 1.1, entonces es la camada frente
+                if(cubes[i].verticesCentrales[0] > 0.9f && cubes[i].verticesCentrales[0] < 1.1f){
+                    cubes[i].rotate(speed, 'x');
+                }
+            }
+            break;
+    }
+    
+    acumAngle += speed;
+    if(acumAngle >= (PI / 2)){
+        camada = 0;
+        acumAngle = 0;
+
+        // * Actualizamos los centros de los cubos
+        for(int i = 0; i < 27; i++){
+            //cout << "BEFORE (Cube " << i << "): " << cubes[i].verticesCentrales[0] << ", " << cubes[i].verticesCentrales[1] << ", " << cubes[i].verticesCentrales[2] << endl; 
+            cubes[i].calculateCenter();
+            // cout << "AFTER (Cube " << i << "): " << cubes[i].verticesCentrales[0] << ", " << cubes[i].verticesCentrales[1] << ", " << cubes[i].verticesCentrales[2] << endl;
+            //cout << endl;
+        }
+    }
+}
+
+void 
+rotateCamada_ArribaAbajo(){
+    switch (camada){
+        case 4: // * Camada Atras - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre -1.1 y -0.9, entonces es la camada atras
+                if( cubes[i].verticesCentrales[1] > -1.1f && cubes[i].verticesCentrales[1] < -0.9f){
+                    cubes[i].rotate(speed, 'y');
+                }
+            }
+            break;
+        case 5: // * Camada Central - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre -0.1 y 0.1, entonces es la camada central
+                if(cubes[i].verticesCentrales[1] > -0.1f && cubes[i].verticesCentrales[1] < 0.1f){
+                    cubes[i].rotate(speed, 'y');
+                }
+            }
+            break;
+        case 6: // * Camada Frente - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre 0.9 y 1.1, entonces es la camada frente
+                if(cubes[i].verticesCentrales[1] > 0.9f && cubes[i].verticesCentrales[1] < 1.1f){
+                    cubes[i].rotate(speed, 'y');
+                }
+            }
+            break;
+    }
+
+    acumAngle += speed;
+    if(acumAngle >= (PI / 2)){
+        camada = 0;
+        acumAngle = 0;
+
+        // * Actualizamos los centros de los cubos
+        for(int i = 0; i < 27; i++){
+            //cout << "BEFORE (Cube " << i << "): " << cubes[i].verticesCentrales[0] << ", " << cubes[i].verticesCentrales[1] << ", " << cubes[i].verticesCentrales[2] << endl; 
+            cubes[i].calculateCenter();
+            // cout << "AFTER (Cube " << i << "): " << cubes[i].verticesCentrales[0] << ", " << cubes[i].verticesCentrales[1] << ", " << cubes[i].verticesCentrales[2] << endl;
+            //cout << endl;
+        }
+    }
+}
+
+void
+rotateCamada_CercaLejos(){
+    switch (camada){
+        case 7: // * Camada Atras - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre -1.1 y -0.9, entonces es la camada atras   
+                if( cubes[i].verticesCentrales[2] > -1.1f && cubes[i].verticesCentrales[2] < -0.9f){
+                    cubes[i].rotate(speed, 'z');
+                }
+            }
+            break;
+        case 8: // * Camada Central - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre -0.1 y 0.1, entonces es la camada central
+                if(cubes[i].verticesCentrales[2] > -0.1f && cubes[i].verticesCentrales[2] < 0.1f){
+                    cubes[i].rotate(speed, 'z');
+                }
+            }
+            break;
+        case 9: // * Camada Frente - Vertical
+            for(int i = 0; i < 27; i++){
+                // * Verificamos que si el centro esta entre 0.9 y 1.1, entonces es la camada frente
+                if(cubes[i].verticesCentrales[2] > 0.9f && cubes[i].verticesCentrales[2] < 1.1f){
+                    cubes[i].rotate(speed, 'z');
+                }
+            }
+            break;
+    }
+    
+    acumAngle += speed;
+    if(acumAngle >= (PI / 2)){
+        camada = 0;
+        acumAngle = 0;
+        // * Actualizamos los centros de los cubos
+        for(int i = 0; i < 27; i++){
+            //cout << "BEFORE (Cube " << i << "): " << cubes[i].verticesCentrales[0] << ", " << cubes[i].verticesCentrales[1] << ", " << cubes[i].verticesCentrales[2] << endl; 
+            cubes[i].calculateCenter();
+            // cout << "AFTER (Cube " << i << "): " << cubes[i].verticesCentrales[0] << ", " << cubes[i].verticesCentrales[1] << ", " << cubes[i].verticesCentrales[2] << endl;
+            //cout << endl;
+        }
+    }
+}
+
+int main()
+{
+    // glfw: initialize and configure
+    // ------------------------------
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    #ifdef _APPLE_
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    #endif
+
+    // glfw window creation
+    // --------------------
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Homework", NULL, NULL);
+    if (window == NULL) {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    // glad: load all OpenGL function pointers
+    // ---------------------------------------
+    /*
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
+    */
+    // ---------------------------------------
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
+    // ---------------------------------------
+
+    glEnable(GL_DEPTH_TEST);
+
+    //unsigned int shaderProgram = createVertexShader(vertexShaderSource, fragmentShaderSource);
+    ShaderClass shaderProgram(vertexShaderSource, fragmentShaderSource);
+
+    glGenVertexArrays(screens, VAO);
+    glGenBuffers(screens, VBO);
+    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+
+    // FIGURE
+    cubes = new Figure[27];
+
+    int count = 0;
+    for (int z = -1; z < 2; z += 1) {
+        for (int y = -1; y < 2; y += 1) {
+            for (int x = -1; x < 2; x += 1) {
+                //printf("cube: %d \tx: %d, y: %d, z: %d\n", count, x, y, z);
+                cubes[count++].move(x, y, z);
+            }
+        }
+    } 
+
+    int cantidadCubos = 27;
+    std::cout << "sz cubes initial: " << cantidadCubos << std::endl;
+
+
+    // --> Re-Move Cubes manually for better visualization (sepation between cubes)
+    /*
+    // * Cara trasera (fila 1)
+    for(int i = 0; i < 3; i++){
+        cubes[i].move(0.00f, 0.00f, -0.04f);
+    }
+    // * Cara trasera (fila 2)
+    for(int i = 3; i < 6; i++){
+        cubes[i].move(0.00f, 0.02f, -0.04f);
+    }
+    // * Cara trasera (fila 3)
+    for(int i = 6; i < 9; i++){
+        cubes[i].move(0.00f, 0.04f, -0.04f);
+    }
+
+    // * Cara central (fila 1)
+    for(int i = 9; i < 12; i++){
+        cubes[i].move(0.00f, 0.00f, -0.02f);
+    }
+    // * Cara central (fila 2)
+    for(int i = 12; i < 15; i++){
+        cubes[i].move(0.00f, 0.02f, -0.02f);
+    }
+    // * Cara central (fila 3)
+    for(int i = 15; i < 18; i++){
+        cubes[i].move(0.00f, 0.04f, -0.02f);
+    }
+
+    // * Cara frontal (fila 1)
+    for(int i = 18; i < 21; i++){
+        cubes[i].move(0.00f, 0.00f, 0.00f);
+    }
+    // * Cara frontal (fila 2)
+    for(int i = 21; i < 24; i++){
+        cubes[i].move(0.00f, 0.02f, 0.00f);
+    }
+    // * Cara frontal (fila 3)
+    for(int i = 24; i < 27; i++){
+        cubes[i].move(0.00f, 0.04f, 0.00f);
+    }
+    */
+
+    // * Calculamos el centro de cada cubo
+    for(int i = 0; i < cantidadCubos; i++){
+        cubes[i].calculateCenter();
+    }
+
+
+    for (int i = 0; i < cantidadCubos; i++) {
+        glBindVertexArray(VAO[i]);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO[i]);
+        glBufferData(GL_ARRAY_BUFFER, cubes[i].sizeVertexes * sizeof(float), cubes[i].vertexes, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+
+        glBindVertexArray(0); 
+        glBindBuffer(GL_ARRAY_BUFFER, 0); 
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+
+    shaderProgram.Activar_ShaderProgram();
+
+    glLineWidth(10);
+    glPointSize(10);
+
+    cout << "------------------------------ INFO CENTROS ------------------------------" << endl;
+    for(int i = 0; i < 27; i++){
+        cout << "Cubo N° " << i << ": ";
+        cout << cubes[i].verticesCentrales[0] << ", " << cubes[i].verticesCentrales[1] << ", " << cubes[i].verticesCentrales[2] << endl;
+    }
+    cout << "-------------------------------------------------------------------------" << endl;
+    
+    while (!glfwWindowShouldClose(window)) { 
+        processInput(window);
+
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        shaderProgram.Activar_ShaderProgram();
+
+        // --> Matriz de transformacion
+        glm::mat4 projection = glm::perspective(glm::radians(fov), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        shaderProgram.setMat4("projection", projection);
+
+        // --> View/cam Transformation
+        //glm::mat4 view = glm::lookAt(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), cameraUp); // --> Camara en el origen
+        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        shaderProgram.setMat4("view", view);
+
+        // --> Verificacion de movimiento de camada
+        if (camada >= 1 && camada <= 3){ // * Camada derecha - izquierda
+            rotateCamada_DerechaIzquierda();
+        }
+        else if (camada >= 4 && camada <= 6){ // * Camada arriba - abajo
+            rotateCamada_ArribaAbajo(); 
+        }
+        else if (camada >= 7 && camada <= 9){ // * Camada cerca - lejos
+            rotateCamada_CercaLejos();
+        }
+
+        for(unsigned int i = 0; i < cantidadCubos; i++) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, cubes[i].center);
+            shaderProgram.setMat4("model", model);
+
+            glBindVertexArray(VAO[i]);
+            glBindBuffer(GL_ARRAY_BUFFER, VBO[i]);
+            glBufferData(GL_ARRAY_BUFFER, cubes[i].sizeVertexes * sizeof(float), cubes[i].vertexes, GL_STATIC_DRAW);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    // optional: de-allocate all resources once they've outlived their purpose:
+    // ------------------------------------------------------------------------
+    glDeleteVertexArrays(screens, VAO);
+    glDeleteBuffers(screens, VBO);
+    glDeleteBuffers(screens, EBO);
+    //glDeleteProgram(shaderProgram);
+
+    // glfw: terminate, clearing all previously allocated GLFW resources.
+    // ------------------------------------------------------------------
+    glfwTerminate();
+    return 0;
+}
+
+
+// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
+// ---------------------------------------------------------------------------------------------------------
+void processInput(GLFWwindow *window)
+{
+    // EXIT
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+    
+    // PRIMITIVAS
+    //else if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
+    //    gl_draw_number = GL_POINTS;
+    //else if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
+    //    gl_draw_number = GL_LINE_LOOP;
+    //else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    //    gl_draw_number = GL_LINE_STRIP;
+    //else if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS)
+    //    gl_draw_number = GL_TRIANGLES;
+
+    // MOVIMIENTO DE CAMARA
+    float cameraSpeed = 0.1f; // --> Velocidad de movimiento de la cámara
+    if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        cameraPos = cameraPos + cameraSpeed * cameraFront;
+    if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        cameraPos = cameraPos - cameraSpeed * cameraFront;
+    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        cameraPos = cameraPos - glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        cameraPos = cameraPos + glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if(glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+        cameraPos = cameraPos + cameraSpeed * cameraUp;
+    if(glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+        cameraPos = cameraPos - cameraSpeed * cameraUp;
+
+    // MOVIMIENTO DE CAMADA
+    if(glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) // * Derecha - Izquierda       (L )
+        camada = 1;
+    if(glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) // * Derecha - Izquierda
+        camada = 2;
+    if(glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) // * Derecha - Izquierda       (R')
+        camada = 3;
+    if(glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) // * Arriba - Abajo            (D )
+        camada = 4;
+    if(glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) // * Arriba - Abajo
+        camada = 5;
+    if(glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS) // * Arriba - Abajo            (U')
+        camada = 6;
+    if(glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS) // * Cerca - Lejos             (B )
+        camada = 7;
+    if(glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS) // * Cerca - Lejos
+        camada = 8;
+    if(glfwGetKey(window, GLFW_KEY_9) == GLFW_PRESS) // * Cerca - Lejos             (F')
+        camada = 9;
+
+    // Solver
+    if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS){
+        std::string solve;
+        int am;
+        Cube Cube1;
+        std::string scramble;
+        std::cout << "Don't use {x, y, z, l, r, u, d, f, b, M, S, E} \n Use only {L, R, U, D, F, B} and (\"'\" , \"2\")\n";
+        //while (true)
+        //{
+            std::cout << "Enter the scramblSe:\n";
+            //std::cin >> scramble;
+            scramble = "LFLFLFLLFFFL";
+            //scramble = "L'F";
+            Cube1.SetScramble(scramble);
+            Cube1.PrintCube();
+            solve = SolveCube(Cube1, "CMD");
+            am = Cube1.SetScramble(solve);
+            std::cout << "Movess: " << am << '\n';
+            std::cout << "Solutions: " << solve << '\n';
+            //std::vector<std::string> convertedMoves = convertMoves(solve);
+
+            //for (const std::string& move : convertedMoves) {
+            //			std::cout << move << " ";
+            //}
+        //std::cout << std::endl;
+            Cube1.PrintCube();
+            Cube1.PrintBoolIsSolved();
+            cout << endl << endl << endl;
+    }
+}
+
+void mouse_callback(GLFWwindow *window, double xposIn, double yposIn){
+    float xpos = static_cast<float>(xposIn);
+    float ypos = static_cast<float>(yposIn);
+
+    if (firstMouse){
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX; // --> Posición en x del mouse
+    float yoffset = lastY - ypos; // --> Posición en y del mouse
+    lastX = xpos;
+    lastY = ypos;
+
+    // --> Sensibilidad del mouse
+    float sensitivity = 0.1f;
+    xoffset = xoffset * sensitivity;
+    yoffset = yoffset * sensitivity;
+
+    // --> Angulo de rotación
+    yaw = yaw + xoffset;
+    pitch = pitch + yoffset;
+
+    // --> Limitar el movimiento de la cámara
+    if (pitch > 89.0f){
+        pitch = 89.0f;
+    }
+    if (pitch < -89.0f){
+        pitch = -89.0f;
+    }
+
+    // --> Cálculo de la dirección de la cámara
+    glm::vec3 front;
+    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch)); // --> Cálculo de la dirección en x
+    front.y = sin(glm::radians(pitch)); // --> Cálculo de la dirección en y
+    front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch)); // --> Cálculo de la dirección en z
+    cameraFront = glm::normalize(front);
+}
+
+// --> Procesar el scroll del mouse
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset){
+    fov = fov - (float)yoffset;
+    if (fov < 1.0f){
+        fov = 1.0f;
+    }
+    if (fov > 45.0f){
+        fov = 45.0f;
+    }
+}
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
